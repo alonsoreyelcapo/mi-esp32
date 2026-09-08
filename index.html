@@ -1,723 +1,2206 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-theme="emerald">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ESP32 · Monitor de Plantas</title>
-  <!-- Google Fonts & Font Awesome -->
-  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz@14..32&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <title>EcoFlora ESP32 | Monitoreo Inteligente & Firebase RTDB</title>
   <style>
+    /* ==========================================================================
+       VARIABLES Y TEMAS VISUALES
+       ========================================================================== */
+    :root {
+      --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* TEMA A: EMERALD BIOTECH (Oscuro lujoso, esmeralda y cian) */
+    html[data-theme="emerald"] {
+      --bg-base: #081014;
+      --bg-surface: #0e1c22;
+      --bg-surface-elevated: #152932;
+      --bg-glass: rgba(14, 28, 34, 0.85);
+      --border-color: rgba(16, 185, 129, 0.2);
+      --border-focus: #10b981;
+      --text-main: #f0fdf4;
+      --text-muted: #86a798;
+      --text-dim: #4e6b5e;
+      --accent: #10b981;
+      --accent-hover: #059669;
+      --accent-glow: rgba(16, 185, 129, 0.3);
+      --accent-secondary: #06b6d4;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --info: #3b82f6;
+      --card-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.6), 0 0 20px -5px rgba(16, 185, 129, 0.12);
+      --chart-grid: rgba(255, 255, 255, 0.08);
+      --chart-text: #86a798;
+    }
+
+    /* TEMA B: BOTANICAL CLEAN (Limpio, agro-moderno) */
+    html[data-theme="clean"] {
+      --bg-base: #f4f6f8;
+      --bg-surface: #ffffff;
+      --bg-surface-elevated: #f8fafc;
+      --bg-glass: rgba(255, 255, 255, 0.9);
+      --border-color: #e2e8f0;
+      --border-focus: #059669;
+      --text-main: #0f172a;
+      --text-muted: #475569;
+      --text-dim: #94a3b8;
+      --accent: #059669;
+      --accent-hover: #047857;
+      --accent-glow: rgba(5, 150, 105, 0.2);
+      --accent-secondary: #0284c7;
+      --warning: #d97706;
+      --danger: #dc2626;
+      --info: #2563eb;
+      --card-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(0,0,0,0.05);
+      --chart-grid: rgba(0, 0, 0, 0.06);
+      --chart-text: #475569;
+    }
+
+    /* TEMA C: CYBER FLORA NEON (Futurista retro-neón) */
+    html[data-theme="cyber"] {
+      --bg-base: #06060c;
+      --bg-surface: #0e0e1a;
+      --bg-surface-elevated: #17172c;
+      --bg-glass: rgba(14, 14, 26, 0.85);
+      --border-color: rgba(0, 240, 255, 0.28);
+      --border-focus: #00f0ff;
+      --text-main: #ffffff;
+      --text-muted: #a5b4fc;
+      --text-dim: #6366f1;
+      --accent: #00f0ff;
+      --accent-hover: #38bdf8;
+      --accent-glow: rgba(0, 240, 255, 0.45);
+      --accent-secondary: #f43f5e;
+      --warning: #fbbf24;
+      --danger: #ff0055;
+      --info: #818cf8;
+      --card-shadow: 0 0 25px rgba(0, 240, 255, 0.2), 0 8px 30px rgba(0,0,0,0.85);
+      --chart-grid: rgba(0, 240, 255, 0.1);
+      --chart-text: #a5b4fc;
+    }
+
     * {
+      box-sizing: border-box;
       margin: 0;
       padding: 0;
-      box-sizing: border-box;
-      font-family: 'Inter', -apple-system, sans-serif;
     }
 
     body {
-      background: #f4f7fc;
+      font-family: var(--font-sans);
+      background-color: var(--bg-base);
+      color: var(--text-main);
       min-height: 100vh;
-      padding: 2rem 1.5rem;
-      display: flex;
-      justify-content: center;
-      align-items: center;
+      line-height: 1.5;
+      background-image: 
+        radial-gradient(circle at 15% 15%, var(--accent-glow) 0%, transparent 45%),
+        radial-gradient(circle at 85% 85%, rgba(6, 182, 212, 0.08) 0%, transparent 45%);
+      background-attachment: fixed;
+      transition: background-color 0.4s ease, color 0.4s ease;
+      overflow-x: hidden;
     }
 
-    .dashboard {
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: var(--bg-base);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--accent);
+    }
+
+    /* CABECERA */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      background: var(--bg-glass);
+      border-bottom: 1px solid var(--border-color);
+      padding: 0.85rem 1.5rem;
+    }
+
+    .header-container {
       max-width: 1400px;
-      width: 100%;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
     }
 
-    /* Header */
-    .header {
+    .brand {
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      margin-bottom: 2.5rem;
+      gap: 0.85rem;
+      text-decoration: none;
+      color: var(--text-main);
+    }
+
+    .brand-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      box-shadow: 0 4px 14px var(--accent-glow);
+      animation: gentle-pulse 4s infinite ease-in-out;
+    }
+
+    @keyframes gentle-pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+
+    .brand-title {
+      font-size: 1.25rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .brand-badge {
+      font-size: 0.65rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 20px;
+      background: var(--accent-glow);
+      color: var(--accent);
+      border: 1px solid var(--border-color);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    /* Estado de Firebase en el Header */
+    .firebase-status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 0.75rem;
+      border-radius: 20px;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-color);
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text-main);
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .firebase-status-pill:hover {
+      border-color: var(--accent);
+      transform: translateY(-1px);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+    }
+
+    .status-dot.listening {
+      animation: sync-pulse 1.4s infinite alternate;
+    }
+
+    @keyframes sync-pulse {
+      0% { opacity: 0.4; transform: scale(0.8); }
+      100% { opacity: 1; transform: scale(1.25); }
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
       flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.55rem 1rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      border-radius: 10px;
+      border: 1px solid var(--border-color);
+      background: var(--bg-surface-elevated);
+      color: var(--text-main);
+      cursor: pointer;
+      transition: var(--transition);
+      user-select: none;
+    }
+
+    .btn:hover {
+      border-color: var(--border-focus);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
+      color: #ffffff;
+      border: none;
+      box-shadow: 0 4px 14px var(--accent-glow);
+    }
+
+    .btn-primary:hover {
+      opacity: 0.95;
+      box-shadow: 0 6px 20px var(--accent-glow);
+    }
+
+    .btn-outline {
+      background: transparent;
+      border-color: var(--border-color);
+    }
+
+    .btn-outline:hover {
+      background: var(--accent-glow);
+      color: var(--accent);
+    }
+
+    .theme-select-wrap {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 0.25rem 0.6rem;
+      font-size: 0.8rem;
+    }
+
+    .theme-select {
+      background: transparent;
+      border: none;
+      color: var(--text-main);
+      font-size: 0.8rem;
+      font-weight: 600;
+      outline: none;
+      cursor: pointer;
+    }
+
+    /* BANNER MODO AUTÓNOMO */
+    .autonomous-banner {
+      background: linear-gradient(90deg, rgba(16, 185, 129, 0.12), rgba(6, 182, 212, 0.12));
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 1rem 1.5rem;
+      margin: 1.5rem auto 0;
+      max-width: 1400px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1.25rem;
+      flex-wrap: wrap;
+      box-shadow: var(--card-shadow);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .autonomous-banner::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 5px;
+      background: linear-gradient(to bottom, var(--accent), var(--accent-secondary));
+    }
+
+    .banner-info {
+      display: flex;
+      align-items: center;
       gap: 1rem;
     }
 
-    .header h1 {
-      font-weight: 600;
-      font-size: 2rem;
-      color: #1a2639;
-      letter-spacing: -0.5px;
+    .banner-chip {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 0.5rem;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      padding: 0.4rem 0.85rem;
+      border-radius: 30px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--accent);
+      white-space: nowrap;
     }
 
-    .header h1 i {
-      color: #2a7a62;
-      font-size: 2rem;
+    .live-dot {
+      width: 10px;
+      height: 10px;
+      background: var(--accent);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--accent);
+      animation: live-blink 1.8s infinite;
     }
 
-    .badge {
-      background: #e9edf4;
-      padding: 0.5rem 1.2rem;
-      border-radius: 60px;
-      font-size: 0.85rem;
-      font-weight: 500;
-      color: #2c3e50;
-      box-shadow: inset 0 1px 3px rgba(0,0,0,0.03);
+    @keyframes live-blink {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.3; transform: scale(0.8); }
+    }
+
+    .banner-text h4 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text-main);
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 0.5rem;
     }
 
-    .badge i {
-      color: #2a7a62;
+    .banner-text p {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-top: 0.15rem;
     }
 
-    /* grid cards */
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    .banner-stats {
+      display: flex;
+      align-items: center;
       gap: 1.5rem;
-      margin-bottom: 2rem;
-    }
-
-    .card {
-      background: #ffffff;
-      border-radius: 28px;
-      padding: 1.5rem 1.2rem 1.2rem;
-      box-shadow: 0 12px 30px rgba(0, 20, 30, 0.06), 0 2px 8px rgba(0,0,0,0.02);
-      transition: transform 0.15s ease, box-shadow 0.2s;
-      border: 1px solid rgba(255,255,255,0.5);
-      backdrop-filter: blur(2px);
-    }
-
-    .card:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 22px 40px rgba(0, 30, 40, 0.08);
-    }
-
-    .card-header {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-weight: 500;
-      color: #3a4a5e;
-      letter-spacing: 0.3px;
-      font-size: 0.9rem;
-      text-transform: uppercase;
-      border-bottom: 1px solid #f0f4fa;
-      padding-bottom: 0.75rem;
-      margin-bottom: 1rem;
-    }
-
-    .card-header i {
-      font-size: 1.2rem;
-      color: #2a7a62;
-      width: 24px;
-      text-align: center;
-    }
-
-    .card-value {
-      font-size: 2rem;
-      font-weight: 600;
-      color: #0d1b2a;
-      line-height: 1.2;
-      margin-bottom: 0.2rem;
-      display: flex;
-      align-items: baseline;
-      gap: 6px;
       flex-wrap: wrap;
     }
 
-    .card-unit {
-      font-size: 0.9rem;
-      font-weight: 400;
-      color: #6b7b8f;
-      margin-left: 4px;
-    }
-
-    .card-sub {
-      font-size: 0.85rem;
-      color: #5b6f85;
+    .banner-stat-item {
       display: flex;
-      align-items: center;
-      gap: 6px;
-      margin-top: 4px;
+      flex-direction: column;
+      text-align: right;
     }
 
-    .status-badge {
-      display: inline-block;
-      padding: 0.2rem 0.9rem;
-      border-radius: 60px;
-      font-size: 0.75rem;
+    .stat-caption {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
       font-weight: 600;
-      background: #eef2f7;
-      color: #2c3e50;
     }
 
-    .status-on {
-      background: #d2f0e6;
-      color: #0d6b4a;
+    .stat-val-highlight {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: var(--text-main);
     }
 
-    .status-off {
-      background: #fce6e6;
-      color: #b33c3c;
+    /* CONTENEDOR PRINCIPAL */
+    main {
+      max-width: 1400px;
+      margin: 1.5rem auto 3rem;
+      padding: 0 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.75rem;
     }
 
-    .row-2col {
+    .hero-dashboard-grid {
       display: grid;
-      grid-template-columns: 2fr 1fr;
+      grid-template-columns: 1.2fr 1fr;
       gap: 1.5rem;
-      margin-bottom: 2rem;
     }
 
-    @media (max-width: 780px) {
-      .row-2col {
+    @media (max-width: 1024px) {
+      .hero-dashboard-grid {
         grid-template-columns: 1fr;
       }
     }
 
-    .chart-container {
-      background: white;
-      border-radius: 28px;
-      padding: 1.5rem 1.2rem 0.8rem;
-      box-shadow: 0 12px 30px rgba(0, 20, 30, 0.04);
-      border: 1px solid rgba(255,255,255,0.5);
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      padding: 1.5rem;
+      box-shadow: var(--card-shadow);
+      backdrop-filter: blur(10px);
+      transition: var(--transition);
+      position: relative;
+      overflow: hidden;
     }
 
-    .chart-container canvas {
-      max-height: 200px;
-      max-width: 100%;
+    .card:hover {
+      border-color: rgba(16, 185, 129, 0.35);
     }
 
-    /* registro histórico */
-    .registro-section {
-      background: white;
-      border-radius: 28px;
-      padding: 1.5rem 1.2rem 1.8rem;
-      box-shadow: 0 12px 30px rgba(0, 20, 30, 0.04);
-      border: 1px solid rgba(255,255,255,0.5);
+    /* PLANTA INTERACTIVA */
+    .plant-avatar-card {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 400px;
+      background: radial-gradient(circle at 50% 20%, var(--accent-glow) 0%, transparent 70%), var(--bg-surface);
+    }
+
+    .plant-stage {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      position: relative;
+      padding: 1rem 0;
+      height: 250px;
+    }
+
+    .plant-svg-container {
+      width: 190px;
+      height: 190px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .plant-svg {
+      width: 100%;
+      height: 100%;
+      filter: drop-shadow(0 10px 15px rgba(0, 0, 0, 0.3));
+      transition: transform 0.5s ease, filter 0.5s ease;
+    }
+
+    .rain-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 120px;
+      pointer-events: none;
+      display: none;
+      overflow: hidden;
+    }
+
+    .rain-container.active {
+      display: block;
+    }
+
+    .drop {
+      position: absolute;
+      width: 3px;
+      height: 16px;
+      background: linear-gradient(to bottom, transparent, #38bdf8);
+      border-radius: 50%;
+      animation: rain-fall 0.65s infinite linear;
+    }
+
+    @keyframes rain-fall {
+      0% { transform: translateY(-20px) scaleY(1); opacity: 0; }
+      50% { opacity: 1; }
+      100% { transform: translateY(130px) scaleY(1.3); opacity: 0; }
+    }
+
+    .plant-status-message {
+      text-align: center;
       margin-top: 0.5rem;
     }
 
-    .registro-header {
-      display: flex;
-      justify-content: space-between;
+    .plant-mood-badge {
+      display: inline-flex;
       align-items: center;
-      flex-wrap: wrap;
-      gap: 1rem;
-      margin-bottom: 1.5rem;
-    }
-
-    .registro-header h3 {
-      font-weight: 600;
-      font-size: 1.2rem;
-      color: #1a2639;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .date-selector {
-      display: flex;
       gap: 0.5rem;
-      flex-wrap: wrap;
-    }
-
-    .date-btn {
-      background: #f0f4fa;
-      border: none;
-      padding: 0.5rem 1.2rem;
-      border-radius: 40px;
-      font-weight: 500;
-      font-size: 0.85rem;
-      color: #2c3e50;
-      cursor: pointer;
-      transition: 0.15s;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .date-btn.active {
-      background: #1a2639;
-      color: white;
-    }
-
-    .date-btn:hover {
-      background: #dce3ed;
-    }
-
-    .horas-grid {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.6rem;
-      margin: 0.8rem 0 1.2rem;
-    }
-
-    .hora-btn {
-      background: #f4f7fc;
-      border: 1px solid #e2e9f2;
-      padding: 0.4rem 1rem;
-      border-radius: 40px;
-      font-size: 0.8rem;
-      font-weight: 500;
-      color: #2c3e50;
-      cursor: pointer;
-      transition: all 0.1s;
-    }
-
-    .hora-btn.active {
-      background: #2a7a62;
-      color: white;
-      border-color: #2a7a62;
-    }
-
-    .registro-detalle {
-      background: #f9fbfd;
+      padding: 0.35rem 0.9rem;
       border-radius: 20px;
-      padding: 1.2rem;
-      margin-top: 0.8rem;
+      font-size: 0.85rem;
+      font-weight: 700;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-color);
+      margin-bottom: 0.4rem;
+    }
+
+    .plant-desc {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    /* KPIS Y METRICAS */
+    .metrics-column {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .kpi-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      grid-template-columns: repeat(2, 1fr);
       gap: 1rem;
     }
 
-    .detalle-item {
-      background: white;
+    @media (max-width: 600px) {
+      .kpi-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .kpi-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
       border-radius: 16px;
-      padding: 0.8rem 1rem;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+      padding: 1.15rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 0.75rem;
+      box-shadow: var(--card-shadow);
+      position: relative;
+      overflow: hidden;
     }
 
-    .detalle-item .label {
-      font-size: 0.7rem;
-      text-transform: uppercase;
-      color: #6b7b8f;
-      letter-spacing: 0.3px;
+    .kpi-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
 
-    .detalle-item .value {
+    .kpi-title {
+      font-size: 0.8rem;
       font-weight: 600;
-      font-size: 1.1rem;
-      color: #0d1b2a;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
 
-    .empty-state {
-      color: #7c8b9f;
-      padding: 1rem 0;
+    .kpi-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-color);
+    }
+
+    .kpi-value-row {
+      display: flex;
+      align-items: baseline;
+      gap: 0.4rem;
+    }
+
+    .kpi-number {
+      font-size: 1.85rem;
+      font-weight: 800;
+      color: var(--text-main);
+      font-feature-settings: "tnum";
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .kpi-unit {
+      font-size: 0.9rem;
+      color: var(--text-dim);
+      font-weight: 700;
+    }
+
+    .kpi-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      padding-top: 0.5rem;
+    }
+
+    /* GAUGE CIRCULAR */
+    .gauge-wrapper {
+      position: relative;
+      width: 140px;
+      height: 140px;
+      margin: 0 auto;
+    }
+
+    .gauge-svg {
+      transform: rotate(-90deg);
+      width: 100%;
+      height: 100%;
+    }
+
+    .gauge-bg {
+      fill: none;
+      stroke: var(--bg-surface-elevated);
+      stroke-width: 10;
+    }
+
+    .gauge-progress {
+      fill: none;
+      stroke: var(--accent);
+      stroke-width: 10;
+      stroke-linecap: round;
+      stroke-dasharray: 377;
+      stroke-dashoffset: 377;
+      transition: stroke-dashoffset 1s ease, stroke 0.5s ease;
+      filter: drop-shadow(0 0 6px var(--accent-glow));
+    }
+
+    .gauge-center-text {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
       text-align: center;
     }
 
-    .footer-note {
-      margin-top: 1.5rem;
-      font-size: 0.8rem;
-      color: #5b6f85;
-      text-align: right;
-      border-top: 1px solid #eef2f7;
-      padding-top: 1.2rem;
+    .gauge-pct {
+      font-size: 1.7rem;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .gauge-sub {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    /* BATERIA */
+    .battery-pill {
       display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      background: var(--bg-surface-elevated);
+      padding: 0.4rem 0.75rem;
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+    }
+
+    .battery-icon-outline {
+      width: 28px;
+      height: 14px;
+      border: 2px solid var(--text-muted);
+      border-radius: 4px;
+      padding: 1px;
+      position: relative;
+    }
+
+    .battery-icon-outline::after {
+      content: '';
+      position: absolute;
+      right: -4px;
+      top: 3px;
+      width: 2px;
+      height: 4px;
+      background: var(--text-muted);
+      border-radius: 0 2px 2px 0;
+    }
+
+    .battery-level-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 2px;
+      transition: width 0.4s ease, background-color 0.4s ease;
+      width: 0%;
+    }
+
+    /* GRAFICOS CHART.JS */
+    .charts-section {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 1024px) {
+      .charts-section {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .chart-card {
+      min-height: 380px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .chart-header {
+      display: flex;
+      align-items: center;
       justify-content: space-between;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .chart-title-area h3 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .chart-title-area p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .chart-canvas-container {
+      position: relative;
+      flex: 1;
+      width: 100%;
+      min-height: 280px;
+    }
+
+    /* RESUMEN ELECTRICO */
+    .power-summary-card {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .power-metric-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.85rem;
+      border-radius: 12px;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-color);
+      transition: var(--transition);
+    }
+
+    .power-metric-row:hover {
+      border-color: var(--accent);
+      transform: translateX(3px);
+    }
+
+    .power-metric-info {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .power-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: rgba(16, 185, 129, 0.1);
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+    }
+
+    /* TABLA HISTORICA */
+    .table-section-card {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .table-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
       flex-wrap: wrap;
     }
 
-    i.fa-solid, i.fa-regular {
-      color: #2a7a62;
+    .search-input-wrap {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 0.5rem 0.85rem;
+      width: 320px;
+      max-width: 100%;
     }
 
-    .text-muted {
-      color: #5b6f85;
+    .search-input {
+      background: transparent;
+      border: none;
+      color: var(--text-main);
+      font-size: 0.85rem;
+      width: 100%;
+      outline: none;
     }
 
-    .badge-icon {
-      background: #eef3f9;
-      border-radius: 30px;
-      padding: 0.2rem 0.9rem;
+    .filter-tabs {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      background: var(--bg-surface-elevated);
+      padding: 0.3rem;
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+    }
+
+    .filter-tab {
+      padding: 0.35rem 0.75rem;
+      border-radius: 8px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .filter-tab.active {
+      background: var(--accent);
+      color: #ffffff;
+      box-shadow: 0 2px 8px var(--accent-glow);
+    }
+
+    .table-responsive {
+      overflow-x: auto;
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      text-align: left;
+    }
+
+    th {
+      background: var(--bg-surface-elevated);
+      color: var(--text-muted);
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 0.72rem;
+      letter-spacing: 0.05em;
+      padding: 0.9rem 1rem;
+      border-bottom: 1px solid var(--border-color);
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 0.85rem 1rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      color: var(--text-main);
+      white-space: nowrap;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:hover td {
+      background: rgba(16, 185, 129, 0.04);
+    }
+
+    .key-badge {
+      font-family: monospace;
       font-size: 0.75rem;
+      background: var(--bg-surface-elevated);
+      padding: 0.2rem 0.5rem;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      color: var(--accent-secondary);
+    }
+
+    .badge-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .badge-off {
+      background: rgba(100, 116, 139, 0.15);
+      color: #94a3b8;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+    }
+
+    .badge-watering {
+      background: rgba(16, 185, 129, 0.2);
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      animation: pulse-watering 1.5s infinite;
+    }
+
+    @keyframes pulse-watering {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+      70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+    }
+
+    .table-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    /* MODAL DE FIREBASE */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(8px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      padding: 1rem;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .modal-backdrop.open {
+      display: flex;
+      opacity: 1;
+    }
+
+    .modal-box {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      width: 550px;
+      max-width: 100%;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.75);
+      overflow: hidden;
+      transform: scale(0.95);
+      transition: transform 0.3s ease;
+    }
+
+    .modal-backdrop.open .modal-box {
+      transform: scale(1);
+    }
+
+    .modal-header {
+      padding: 1.25rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .modal-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .modal-close {
+      background: transparent;
+      border: none;
+      font-size: 1.5rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      line-height: 1;
+    }
+
+    .modal-body {
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .form-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .form-control {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 0.65rem 0.9rem;
+      color: var(--text-main);
+      font-size: 0.88rem;
+      outline: none;
+      transition: var(--transition);
+      width: 100%;
+    }
+
+    .form-control:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    /* TOAST */
+    .toast-container {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      z-index: 300;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      pointer-events: none;
+    }
+
+    .toast {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 0.85rem 1.25rem;
+      border-radius: 12px;
+      font-size: 0.85rem;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      transform: translateY(20px);
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      pointer-events: auto;
+    }
+
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
     }
   </style>
 </head>
 <body>
-<div class="dashboard" id="app">
 
-  <!-- HEADER -->
-  <div class="header">
-    <h1><i class="fas fa-leaf"></i> Monitoreo · Plantas</h1>
-    <div class="badge">
-      <i class="fas fa-sync-alt fa-fw"></i> 
-      <span id="lastUpdateLabel">Última actualización: hace 2s</span>
+  <!-- ========================================================================
+       BARRA DE NAVEGACIÓN SUPERIOR
+       ======================================================================== -->
+  <header>
+    <div class="header-container">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M7 20h10" />
+            <path d="M10 20c0-3.5 1-6.5 2-9" />
+            <path d="M12 11c1-2.5 3-4.5 6-5-1 3-3 5-6 5Z" />
+            <path d="M12 14c-1-2-3-3-5.5-3 .5 2.5 2.5 4 5.5 3Z" />
+          </svg>
+        </div>
+        <div>
+          <div class="brand-title">
+            EcoFlora <span style="color:var(--accent);">ESP32</span>
+            <span class="brand-badge">IoT Hub</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Estado en vivo de Firebase SDK Realtime Listener -->
+      <div id="firebaseHeaderBadge" class="firebase-status-pill" title="Escucha en tiempo real de Firebase activa">
+        <span id="firebaseStatusDot" class="status-dot listening"></span>
+        <span id="firebaseStatusText">Firebase RTDB: Conectando a ESP32_Datos...</span>
+      </div>
+
+      <div class="header-actions">
+        <!-- Selector de Estilo / Tema -->
+        <div class="theme-select-wrap">
+          <span>🎨</span>
+          <select id="themeSelector" class="theme-select" aria-label="Seleccionar tema visual">
+            <option value="emerald">Opción A: Emerald BioTech</option>
+            <option value="clean">Opción B: Botanical Clean</option>
+            <option value="cyber">Opción C: Cyber Flora Neon</option>
+          </select>
+        </div>
+
+        <!-- Botón Simulador de Riego Autónomo ESP32 -->
+        <button id="btnSimulate" class="btn btn-outline" title="Simular nuevo paquete en ESP32_Datos">
+          <span>⚡</span>
+          <span>Simular Paquete</span>
+        </button>
+
+        <!-- Exportar Registro -->
+        <button id="btnExportCSV" class="btn btn-primary" title="Descargar registro completo en formato CSV">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span>Exportar CSV</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ========================================================================
+       BANNER PRINCIPAL: MODO AUTÓNOMO ESTRICTO (CONFIRMACIÓN DE REQUISITO)
+       ======================================================================== -->
+  <div class="autonomous-banner">
+    <div class="banner-info">
+      <div class="banner-chip">
+        <span class="live-dot"></span>
+        <span>MODO AUTÓNOMO ESP32</span>
+      </div>
+      <div class="banner-text">
+        <h4>
+          Control Inteligente 100% Descentralizado
+          <span style="font-size:0.75rem; font-weight:normal; opacity:0.8;">(Sin accionador manual web)</span>
+        </h4>
+        <p>El microcontrolador ESP32 evalúa continuamente la humedad física del sustrato y conmuta la válvula de riego de forma autónoma.</p>
+      </div>
+    </div>
+    <div class="banner-stats">
+      <div class="banner-stat-item">
+        <span class="stat-caption">Nodo Firebase</span>
+        <span id="bannerFirebaseNode" class="stat-val-highlight" style="color:var(--accent);">ESP32_Datos</span>
+      </div>
+      <div class="banner-stat-item">
+        <span class="stat-caption">Estado Electroválvula</span>
+        <span id="bannerValveState" class="stat-val-highlight" style="color:var(--text-muted);">APAGADO</span>
+      </div>
+      <div class="banner-stat-item">
+        <span class="stat-caption">Última Duración</span>
+        <span id="bannerLastDuration" class="stat-val-highlight">0 s</span>
+      </div>
     </div>
   </div>
 
-  <!-- CARDS PRINCIPALES -->
-  <div class="grid" id="mainCards">
-    <!-- Riego -->
-    <div class="card">
-      <div class="card-header"><i class="fas fa-tint"></i> Riego</div>
-      <div class="card-value" id="riegoEstado">—</div>
-      <div class="card-sub"><i class="far fa-clock"></i> Duración: <span id="duracionRiego">0</span> s</div>
-    </div>
-    <!-- Planta (corriente, voltaje, potencia) -->
-    <div class="card">
-      <div class="card-header"><i class="fas fa-bolt"></i> Planta</div>
-      <div class="card-value"><span id="plantaCorriente">0.0</span><span class="card-unit">mA</span></div>
-      <div class="card-sub"><i class="fas fa-battery-half"></i> <span id="plantaVoltaje">0.00</span> V · <span id="plantaPotencia">0.00</span> W</div>
-    </div>
-    <!-- Sensores -->
-    <div class="card">
-      <div class="card-header"><i class="fas fa-microchip"></i> Sensores</div>
-      <div class="card-value"><span id="humedadSuelo">0</span><span class="card-unit">%</span></div>
-      <div class="card-sub"><i class="fas fa-water"></i> <span id="humedadAmbiente">0</span>% · <span id="temperatura">0</span>°C · <span id="presion">0</span> hPa</div>
-    </div>
-    <!-- Registro rápido -->
-    <div class="card" style="background: #f2f6fe;">
-      <div class="card-header"><i class="fas fa-history"></i> Ver registros</div>
-      <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px;">
-        <span class="badge-icon"><i class="far fa-calendar-alt"></i> Hoy</span>
-        <span class="badge-icon"><i class="far fa-clock"></i> 8am · 5pm · 7pm</span>
+  <!-- ========================================================================
+       CONTENEDOR PRINCIPAL
+       ======================================================================== -->
+  <main>
+    <!-- GRID HERO: PLANTA VIRTUAL REACTIVA + GAUGES Y KPIS -->
+    <section class="hero-dashboard-grid">
+      <!-- Tarjeta 1: Planta Virtual Reactiva -->
+      <div class="card plant-avatar-card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <h3 style="font-size:1.1rem; font-weight:700;">Estado Vital de la Planta</h3>
+            <p style="font-size:0.8rem; color:var(--text-muted);">Telemetría en tiempo real desde Firebase RTDB</p>
+          </div>
+          <span id="plantUptimeBadge" style="font-size:0.75rem; font-family:monospace; background:var(--bg-surface-elevated); padding:0.2rem 0.5rem; border-radius:6px; border:1px solid var(--border-color);">
+            Fecha / Hora: --
+          </span>
+        </div>
+
+        <!-- Escenario de la Planta con SVG Interactivo -->
+        <div class="plant-stage">
+          <!-- Gotas de lluvia animadas si está regando -->
+          <div id="rainContainer" class="rain-container">
+            <div class="drop" style="left: 20%; animation-delay: 0.1s;"></div>
+            <div class="drop" style="left: 35%; animation-delay: 0.4s;"></div>
+            <div class="drop" style="left: 50%; animation-delay: 0.2s;"></div>
+            <div class="drop" style="left: 65%; animation-delay: 0.5s;"></div>
+            <div class="drop" style="left: 80%; animation-delay: 0.3s;"></div>
+          </div>
+
+          <div class="plant-svg-container">
+            <svg id="plantSvg" class="plant-svg" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <ellipse cx="100" cy="180" rx="45" ry="10" fill="rgba(0,0,0,0.25)" />
+
+              <!-- Maceta Moderna -->
+              <path d="M65 130 L75 175 C76 178 78 180 81 180 L119 180 C122 180 124 178 125 175 L135 130 Z" fill="#2d3748" stroke="var(--border-color)" stroke-width="2" />
+              <rect x="60" y="122" width="80" height="12" rx="4" fill="#4a5568" stroke="var(--border-color)" stroke-width="2" />
+              <line x1="72" y1="140" x2="128" y2="140" stroke="var(--accent)" stroke-width="2" opacity="0.6" />
+
+              <!-- Tallo Central -->
+              <path id="plantStem" d="M100 122 Q100 85 100 50" stroke="#15803d" stroke-width="6" stroke-linecap="round" />
+
+              <!-- Hoja Izquierda -->
+              <g id="leafLeft" style="transform-origin: 100px 95px; transition: transform 0.5s ease;">
+                <path d="M100 95 C80 90 55 70 60 50 C75 50 95 75 100 95 Z" fill="#22c55e" stroke="#16a34a" stroke-width="2" />
+                <path d="M100 95 Q82 77 65 55" stroke="#15803d" stroke-width="1.5" />
+              </g>
+
+              <!-- Hoja Derecha -->
+              <g id="leafRight" style="transform-origin: 100px 75px; transition: transform 0.5s ease;">
+                <path d="M100 75 C120 70 145 50 140 30 C125 30 105 55 100 75 Z" fill="#4ade80" stroke="#16a34a" stroke-width="2" />
+                <path d="M100 75 Q118 57 135 35" stroke="#15803d" stroke-width="1.5" />
+              </g>
+
+              <!-- Brote Superior -->
+              <g id="leafTop" style="transform-origin: 100px 50px; transition: transform 0.5s ease;">
+                <path d="M100 50 C90 35 95 15 100 12 C105 15 110 35 100 50 Z" fill="#86efac" stroke="#22c55e" stroke-width="1.5" />
+              </g>
+
+              <!-- Gotita de alerta de sequedad -->
+              <g id="sweatDrop" style="display:none;">
+                <path d="M125 90 C125 86 128 82 128 82 C128 82 131 86 131 90 C131 92 129.5 94 128 94 C126.5 94 125 92 125 90 Z" fill="#60a5fa" />
+              </g>
+            </svg>
+          </div>
+
+          <div class="plant-status-message">
+            <div id="plantMoodBadge" class="plant-mood-badge">
+              <span>🌱</span>
+              <span id="plantMoodText">Conectando a Firebase...</span>
+            </div>
+            <p id="plantMoodSub" class="plant-desc">Escuchando eventos en tiempo real en ESP32_Datos...</p>
+          </div>
+        </div>
+
+        <!-- Mini resumen al pie de la tarjeta -->
+        <div style="display:flex; justify-content:space-around; border-top:1px solid rgba(255,255,255,0.06); padding-top:0.75rem; text-align:center;">
+          <div>
+            <span style="font-size:0.7rem; color:var(--text-dim); text-transform:uppercase; font-weight:700;">Humedad Suelo</span>
+            <div id="plantMiniMoisture" style="font-size:1.1rem; font-weight:800; color:var(--accent);">-- %</div>
+          </div>
+          <div>
+            <span style="font-size:0.7rem; color:var(--text-dim); text-transform:uppercase; font-weight:700;">Voltaje Planta</span>
+            <div id="plantMiniVolt" style="font-size:1.1rem; font-weight:800; color:var(--text-main);">-- V</div>
+          </div>
+          <div>
+            <span style="font-size:0.7rem; color:var(--text-dim); text-transform:uppercase; font-weight:700;">Corriente</span>
+            <div id="plantMiniMa" style="font-size:1.1rem; font-weight:800; color:var(--text-main);">-- mA</div>
+          </div>
+        </div>
       </div>
-      <div class="card-sub" style="margin-top: 12px;"><i class="fas fa-arrow-right"></i> Selecciona fecha/hora abajo</div>
-    </div>
-  </div>
 
-  <!-- GRÁFICO + REGISTROS -->
-  <div class="row-2col">
-    <div class="chart-container">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-        <span style="font-weight: 500; color: #1a2639;"><i class="fas fa-chart-line"></i> Evolución (corriente, voltaje, potencia)</span>
-        <span style="font-size: 0.7rem; color:#6b7b8f;">últimos registros</span>
+      <!-- Tarjetas KPIs y Gauge Circular -->
+      <div class="metrics-column">
+        <!-- Tarjeta de Humedad Principal con Gauge Circular -->
+        <div class="card" style="display:flex; align-items:center; justify-content:space-around; gap:1rem; padding:1.25rem;">
+          <div class="gauge-wrapper">
+            <svg class="gauge-svg" viewBox="0 0 140 140">
+              <circle class="gauge-bg" cx="70" cy="70" r="60" />
+              <circle id="soilGaugeProgress" class="gauge-progress" cx="70" cy="70" r="60" />
+            </svg>
+            <div class="gauge-center-text">
+              <div id="soilMoistureValue" class="gauge-pct">--%</div>
+              <div class="gauge-sub">Humedad Suelo</div>
+            </div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:0.6rem;">
+            <div style="font-size:0.8rem; font-weight:700; text-transform:uppercase; color:var(--text-dim);">
+              Sensor Capacitivo / Resistivo
+            </div>
+            <div id="moistureStatusPill" class="badge-status badge-off" style="width:fit-content;">
+              Cargando...
+            </div>
+            <p id="moistureAdvice" style="font-size:0.8rem; color:var(--text-muted); max-width:220px;">
+              Lectura en vivo desde el campo con <code>humedad_suelo_1</code>.
+            </p>
+          </div>
+        </div>
+
+        <!-- Rejilla de Métricas Secundarias -->
+        <div class="kpi-grid">
+          <!-- Batería y Alimentación -->
+          <div class="kpi-card">
+            <div class="kpi-header">
+              <span class="kpi-title">Batería ESP32</span>
+              <div class="kpi-icon">🔋</div>
+            </div>
+            <div class="kpi-value-row">
+              <span id="batteryPercentVal" class="kpi-number">0</span>
+              <span class="kpi-unit">%</span>
+            </div>
+            <div class="battery-pill">
+              <div class="battery-icon-outline">
+                <div id="batteryLevelBar" class="battery-level-fill"></div>
+              </div>
+              <span id="batteryVoltageVal" style="font-size:0.75rem; font-family:monospace; color:var(--text-muted);">0.00 V</span>
+            </div>
+          </div>
+
+          <!-- Potencia Total en Watts -->
+          <div class="kpi-card">
+            <div class="kpi-header">
+              <span class="kpi-title">Potencia (Watts)</span>
+              <div class="kpi-icon">⚡</div>
+            </div>
+            <div class="kpi-value-row">
+              <span id="powerWattsVal" class="kpi-number">0.0000</span>
+              <span class="kpi-unit">W</span>
+            </div>
+            <div class="kpi-footer">
+              <span>Corriente: <b id="powerMaVal" style="color:var(--text-main);">0.0 mA</b></span>
+            </div>
+          </div>
+
+          <!-- Temperatura Ambiente -->
+          <div class="kpi-card">
+            <div class="kpi-header">
+              <span class="kpi-title">Temp. Ambiente</span>
+              <div class="kpi-icon">🌡️</div>
+            </div>
+            <div class="kpi-value-row">
+              <span id="tempAmbVal" class="kpi-number">0</span>
+              <span class="kpi-unit">°C</span>
+            </div>
+            <div class="kpi-footer">
+              <span>Humedad Amb: <b id="humAmbVal" style="color:var(--text-main);">0 %</b></span>
+            </div>
+          </div>
+
+          <!-- Presión Atmosférica -->
+          <div class="kpi-card">
+            <div class="kpi-header">
+              <span class="kpi-title">Presión Barométrica</span>
+              <div class="kpi-icon">🧭</div>
+            </div>
+            <div class="kpi-value-row">
+              <span id="pressureVal" class="kpi-number">0</span>
+              <span class="kpi-unit">hPa</span>
+            </div>
+            <div class="kpi-footer">
+              <span id="pressureNote">Sensor BME280 / I2C</span>
+            </div>
+          </div>
+        </div>
       </div>
-      <canvas id="powerChart" width="400" height="180"></canvas>
-    </div>
-    <div class="card" style="background: #ffffff;">
-      <div class="card-header"><i class="fas fa-database"></i> Último registro</div>
-      <div id="ultimoRegistro" style="font-size: 0.95rem; line-height: 1.6;">
-        <span class="text-muted">Esperando datos...</span>
+    </section>
+
+    <!-- ======================================================================
+         SECCIÓN DE GRÁFICOS Y ANALÍTICA (POWERED BY CHART.JS)
+         ====================================================================== -->
+    <section class="charts-section">
+      <!-- Gráfico de Humedad Temporal con Chart.js -->
+      <div class="card chart-card">
+        <div class="chart-header">
+          <div class="chart-title-area">
+            <h3>Evolución de Humedad y Riego Autónomo</h3>
+            <p>Renderizado en tiempo real con la librería Chart.js</p>
+          </div>
+          <div style="display:flex; align-items:center; gap:0.5rem;">
+            <span id="chartPointsCount" style="font-size:0.75rem; color:var(--text-dim); font-family:monospace;">-- registros</span>
+          </div>
+        </div>
+
+        <div class="chart-canvas-container">
+          <canvas id="moistureChartCanvas"></canvas>
+        </div>
+
+        <div style="margin-top:0.75rem; display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-muted); flex-wrap:wrap; gap:0.5rem;">
+          <div>🔴 <b>Zona Crítica:</b> &lt; 25% (ESP32 dispara riego)</div>
+          <div>🟢 <b>Zona Óptima:</b> 45% - 80%</div>
+          <div>💧 <b>Puntos Azules:</b> Ciclos de Riego Automático</div>
+        </div>
       </div>
-      <div style="margin-top: 0.8rem; border-top: 1px solid #eef2f7; padding-top: 0.8rem; font-size: 0.8rem;">
-        <i class="far fa-calendar-alt"></i> <span id="ultimaFechaHora">—</span>
+
+      <!-- Desglose de Telemetría Eléctrica -->
+      <div class="card power-summary-card">
+        <div>
+          <h3 style="font-size:1.1rem; font-weight:700;">Telemetría de Energía</h3>
+          <p style="font-size:0.8rem; color:var(--text-muted);">Monitoreo del circuito de plantas y ESP32</p>
+        </div>
+
+        <div class="power-metric-row">
+          <div class="power-metric-info">
+            <div class="power-icon">⚡</div>
+            <div>
+              <div style="font-size:0.75rem; color:var(--text-dim); font-weight:700;">VOLTAJE PLANTA</div>
+              <div style="font-size:0.8rem; color:var(--text-muted);">Tensión del sensor/módulo</div>
+            </div>
+          </div>
+          <div id="detailPlantVolt" style="font-size:1.2rem; font-weight:800; color:var(--accent-secondary);">0.000 V</div>
+        </div>
+
+        <div class="power-metric-row">
+          <div class="power-metric-info">
+            <div class="power-icon">🔌</div>
+            <div>
+              <div style="font-size:0.75rem; color:var(--text-dim); font-weight:700;">CORRIENTE CONSUMIDA</div>
+              <div style="font-size:0.8rem; color:var(--text-muted);">Flujo en miliamperios</div>
+            </div>
+          </div>
+          <div id="detailPlantMa" style="font-size:1.2rem; font-weight:800; color:var(--text-main);">0.00 mA</div>
+        </div>
+
+        <div class="power-metric-row">
+          <div class="power-metric-info">
+            <div class="power-icon">💡</div>
+            <div>
+              <div style="font-size:0.75rem; color:var(--text-dim); font-weight:700;">POTENCIA DISIPADA</div>
+              <div style="font-size:0.8rem; color:var(--text-muted);">V × I en vatios</div>
+            </div>
+          </div>
+          <div id="detailPlantWatts" style="font-size:1.2rem; font-weight:800; color:var(--warning);">0.00000 W</div>
+        </div>
+
+        <div style="background:var(--bg-surface-elevated); padding:0.85rem; border-radius:12px; border:1px solid var(--border-color); font-size:0.78rem; color:var(--text-muted); margin-top:auto;">
+          <b style="color:var(--text-main);">Firebase RTDB Activo:</b><br>
+          <span style="word-break:break-all; font-family:monospace; font-size:0.72rem; color:var(--accent);">
+            esp32-monitor-65a05-default-rtdb.firebaseio.com/ESP32_Datos
+          </span>
+        </div>
       </div>
-    </div>
-  </div>
+    </section>
 
-  <!-- SECCIÓN REGISTRO DETALLADO (con selector de día / hora) -->
-  <div class="registro-section">
-    <div class="registro-header">
-      <h3><i class="fas fa-list-ul"></i> Registro histórico</h3>
-      <div class="date-selector">
-        <button class="date-btn active" data-day="hoy"><i class="far fa-calendar-check"></i> Hoy</button>
-        <button class="date-btn" data-day="ayer"><i class="far fa-calendar-alt"></i> Ayer</button>
-        <button class="date-btn" data-day="todos"><i class="fas fa-calendar-week"></i> Todos</button>
+    <!-- ======================================================================
+         TABLA DE REGISTROS HISTÓRICOS ("LLEVAR REGISTRO DE TODO")
+         ====================================================================== -->
+    <section class="card table-section-card">
+      <div class="table-toolbar">
+        <div>
+          <h3 style="font-size:1.15rem; font-weight:800; display:flex; align-items:center; gap:0.5rem;">
+            <span>📋</span>
+            <span>Registro Histórico de Telemetría</span>
+          </h3>
+          <p style="font-size:0.82rem; color:var(--text-muted);">Historial de cada paquete recibido desde Firebase</p>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+          <!-- Filtros Rápidos -->
+          <div class="filter-tabs">
+            <button class="filter-tab active" data-filter="all">Todos</button>
+            <button class="filter-tab" data-filter="dry">Seco (&lt;25%)</button>
+            <button class="filter-tab" data-filter="optimal">Óptimo (&gt;50%)</button>
+            <button class="filter-tab" data-filter="watering">Riego</button>
+          </div>
+
+          <!-- Buscador -->
+          <div class="search-input-wrap">
+            <span>🔍</span>
+            <input type="text" id="tableSearch" class="search-input" placeholder="Buscar por ID, valor o estado...">
+          </div>
+
+          <!-- Botón Exportar JSON -->
+          <button id="btnExportJSON" class="btn btn-outline" style="padding:0.5rem 0.75rem;">
+            <span>JSON</span>
+          </button>
+        </div>
       </div>
-    </div>
 
-    <!-- horas -->
-    <div class="horas-grid" id="horasContainer">
-      <button class="hora-btn active" data-hora="8am">8:00 AM</button>
-      <button class="hora-btn" data-hora="5pm">5:00 PM</button>
-      <button class="hora-btn" data-hora="7pm">7:00 PM</button>
-      <button class="hora-btn" data-hora="ultimo">Último</button>
-    </div>
+      <!-- Tabla Responsive -->
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>ID Firebase</th>
+              <th>Dispositivo</th>
+              <th>Fecha y Hora (Local)</th>
+              <th>Humedad Suelo</th>
+              <th>Riego</th>
+              <th>Duración</th>
+              <th>Voltaje</th>
+              <th>Corriente</th>
+              <th>Potencia</th>
+              <th>Batería</th>
+              <th>Temp / Presión</th>
+            </tr>
+          </thead>
+          <tbody id="telemetryTableBody">
+            <!-- Filas inyectadas por JavaScript -->
+          </tbody>
+        </table>
+      </div>
 
-    <!-- detalle -->
-    <div id="detalleRegistro" class="registro-detalle">
-      <div class="detalle-item"><span class="label">Riego</span><div class="value" id="detRiego">—</div></div>
-      <div class="detalle-item"><span class="label">Duración</span><div class="value" id="detDuracion">—</div></div>
-      <div class="detalle-item"><span class="label">Corriente</span><div class="value" id="detCorriente">—</div></div>
-      <div class="detalle-item"><span class="label">Voltaje</span><div class="value" id="detVoltaje">—</div></div>
-      <div class="detalle-item"><span class="label">Potencia</span><div class="value" id="detPotencia">—</div></div>
-      <div class="detalle-item"><span class="label">Humedad suelo</span><div class="value" id="detHumedad">—</div></div>
-    </div>
-    <div style="margin-top: 1rem; font-size:0.85rem; color:#4a5e74;"><i class="fas fa-info-circle"></i> Los registros se agrupan por día y hora. Selecciona una hora para ver los detalles.</div>
-  </div>
+      <!-- Pie de Tabla -->
+      <div class="table-footer">
+        <div id="tableRecordCount">Cargando registros...</div>
+        <div style="display:flex; gap:0.5rem;">
+          <button id="btnClearHistory" class="btn btn-outline" style="color:var(--danger); border-color:rgba(239, 68, 68, 0.3); font-size:0.75rem;">
+            Restaurar Caché Local
+          </button>
+        </div>
+      </div>
+    </section>
+  </main>
 
-  <div class="footer-note">
-    <span><i class="fas fa-microchip"></i> ESP32 · ciclo: 3 min activo / 5-8h reposo</span>
-    <span><i class="fas fa-sync-alt"></i> Actualización cada 10s</span>
-  </div>
-</div>
+  <!-- TOAST CONTAINER -->
+  <div id="toastContainer" class="toast-container"></div>
 
-<script>
-  (function() {
-    // --- Configuración ---
-    const FIREBASE_URL = 'https://esp32-monitor-65a05-default-rtdb.firebaseio.com/.json';
+  <!-- ========================================================================
+       LIBRERÍAS EXTERNAS CDN: CHART.JS & FIREBASE (COMPAT V9)
+       ======================================================================== -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
-    // --- Estado ---
-    let allData = [];               // array de objetos { key, ...fields }
-    let currentDay = 'hoy';        // 'hoy', 'ayer', 'todos'
-    let currentHour = '8am';
+  <!-- ========================================================================
+       FIREBASE_CONFIG Y LÓGICA EN TIEMPO REAL
+       ======================================================================== -->
+  <script>
+    /**
+     * CONFIGURACIÓN REAL DE FIREBASE RTDB
+     * Conexión con el proyecto: esp32-monitor-65a05
+     */
+    const FIREBASE_CONFIG = {
+      databaseURL: "https://esp32-monitor-65a05-default-rtdb.firebaseio.com",
+      projectId: "esp32-monitor-65a05",
+      authDomain: "esp32-monitor-65a05.firebaseapp.com",
+      storageBucket: "esp32-monitor-65a05.appspot.com"
+    };
 
-    // Elementos DOM
-    const $ = id => document.getElementById(id);
-    const riegoEstado = $('riegoEstado');
-    const duracionRiego = $('duracionRiego');
-    const plantaCorriente = $('plantaCorriente');
-    const plantaVoltaje = $('plantaVoltaje');
-    const plantaPotencia = $('plantaPotencia');
-    const humedadSuelo = $('humedadSuelo');
-    const humedadAmbiente = $('humedadAmbiente');
-    const temperatura = $('temperatura');
-    const presion = $('presion');
-    const ultimoRegistro = $('ultimoRegistro');
-    const ultimaFechaHora = $('ultimaFechaHora');
-    const lastUpdateLabel = $('lastUpdateLabel');
-
-    // Detalle
-    const detRiego = $('detRiego');
-    const detDuracion = $('detDuracion');
-    const detCorriente = $('detCorriente');
-    const detVoltaje = $('detVoltaje');
-    const detPotencia = $('detPotencia');
-    const detHumedad = $('detHumedad');
-
-    // Chart
-    let chart = null;
-
-    // --- Funciones auxiliares ---
-    function formatDate(ts) {
-      if (!ts) return '—';
-      const d = new Date(ts);
-      return d.toLocaleString('es-ES', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+    // Inicializar Firebase Compat
+    if (!firebase.apps.length) {
+      firebase.initializeApp(FIREBASE_CONFIG);
     }
+    const database = firebase.database();
 
-    function getHourLabel(ts) {
-      if (!ts) return '';
-      const d = new Date(ts);
-      const h = d.getHours();
-      const m = d.getMinutes();
-      return `${h}:${m.toString().padStart(2,'0')}`;
-    }
+    // Referencia al nodo principal solicitado: ESP32_Datos
+    const esp32DatosRef = database.ref('ESP32_Datos');
 
-    // Extraer timestamp de la key o del campo timestamp_ms
-    function getTimestamp(obj) {
-      if (obj.timestamp_ms) return obj.timestamp_ms;
-      // si no, intentar desde la key (pero firebase keys no son timestamp)
-      return Date.now();
-    }
+    // Datos iniciales de contingencia
+    const FALLBACK_DATA = {
+      "-P0he63QrdpKGMnOLEAP": {
+        "bateria_porcentaje": 0,
+        "bateria_voltaje": 0,
+        "device": "esp32_plantas",
+        "duracion_riego_segundos": 0,
+        "humedad_ambiente": 0,
+        "humedad_suelo_1": 13,
+        "plantas_corriente_ma": 0.1,
+        "plantas_voltaje": 0.88,
+        "plantas_watts": 0.000088,
+        "presion_hpa": 0,
+        "riego_estado": "apagado",
+        "temperatura_ambiente_c": 0,
+        "timestamp_ms": 1788546149000
+      },
+      "-P0hhw0q85fLZ80CgR4g": {
+        "bateria_porcentaje": 0,
+        "bateria_voltaje": 0,
+        "device": "esp32_plantas",
+        "duracion_riego_segundos": 0,
+        "humedad_ambiente": 0,
+        "humedad_suelo_1": 14,
+        "plantas_corriente_ma": 0.1,
+        "plantas_voltaje": 0.884,
+        "plantas_watts": 0.000088,
+        "presion_hpa": 0,
+        "riego_estado": "apagado",
+        "temperatura_ambiente_c": 0,
+        "timestamp_ms": 1788547145000
+      }
+    };
 
-    // --- Obtener datos desde firebase ---
-    async function fetchData() {
-      try {
-        const resp = await fetch(FIREBASE_URL);
-        if (!resp.ok) throw new Error('Error al obtener datos');
-        const json = await resp.json();
-        if (!json) {
-          allData = [];
-          updateUI();
-          return;
+    // Estado en memoria
+    let telemetryRecords = [];
+    let currentFilter = 'all';
+    let searchQuery = '';
+    let moistureChart = null;
+    let isFirstLoad = true;
+
+    // Inicialización del DOM
+    document.addEventListener('DOMContentLoaded', () => {
+      loadSavedData();
+      initThemeSelector();
+      initEventListeners();
+      initChartJs();
+      renderAll();
+
+      // Iniciar la escucha en tiempo real de Firebase
+      startRealtimeFirebaseListener();
+    });
+
+    /**
+     * ESCUCHA EN TIEMPO REAL DE FIREBASE PARA EL NODO: ESP32_Datos
+     */
+    function startRealtimeFirebaseListener() {
+      const dot = document.getElementById('firebaseStatusDot');
+      const text = document.getElementById('firebaseStatusText');
+
+      dot.className = 'status-dot listening';
+      text.textContent = 'Firebase RTDB: Escuchando ESP32_Datos...';
+
+      // 1. Escucha en tiempo real del nodo ESP32_Datos
+      esp32DatosRef.on('value', (snapshot) => {
+        const data = snapshot.val();
+        
+        if (data) {
+          handleIncomingFirebaseData(data, 'ESP32_Datos');
+          dot.className = 'status-dot';
+          dot.style.background = 'var(--accent)';
+          dot.style.boxShadow = '0 0 10px var(--accent)';
+          text.textContent = `Firebase RTDB: Conectado a ESP32_Datos (${new Date().toLocaleTimeString()})`;
+          document.getElementById('bannerFirebaseNode').textContent = 'ESP32_Datos';
+        } else {
+          // Si el nodo ESP32_Datos aún no tiene hijos, escuchar la raíz como respaldo
+          database.ref().once('value', (rootSnap) => {
+            const rootData = rootSnap.val();
+            if (rootData && typeof rootData === 'object') {
+              // Si la raíz contiene entradas con humedad_suelo_1 o push keys
+              handleIncomingFirebaseData(rootData, 'Raíz (Respaldo)');
+              text.textContent = `Firebase RTDB: Conectado (Esperando datos en ESP32_Datos)`;
+            }
+          });
         }
-        // Convertir objeto en array
-        const entries = Object.entries(json);
-        allData = entries.map(([key, val]) => {
-          return {
-            key,
-            ...val,
-            // timestamp en ms
-            _ts: val.timestamp_ms || Date.now()
-          };
-        });
-        // ordenar por timestamp descendente (más reciente primero)
-        allData.sort((a,b) => (b._ts || 0) - (a._ts || 0));
-        updateUI();
-      } catch (err) {
-        console.error('Error fetch:', err);
-        allData = [];
-        updateUI();
+      }, (error) => {
+        console.error('Error escuchando Firebase RTDB:', error);
+        dot.className = 'status-dot';
+        dot.style.background = 'var(--danger)';
+        text.textContent = `Firebase Error: ${error.message}`;
+        showToast(`Error de conexión Firebase: ${error.message}`, 'alert');
+      });
+    }
+
+    /**
+     * Procesa los datos recibidos de Firebase (ya sea objeto con push-keys o registro único)
+     */
+    function handleIncomingFirebaseData(data, sourceNode) {
+      if (!data) return;
+
+      let newItems = [];
+
+      // Si es un solo registro directo enviado por el ESP32 (ej: set() en ESP32_Datos)
+      if (data.humedad_suelo_1 !== undefined) {
+        newItems = [{
+          id: 'ESP32_Datos_live',
+          ...data,
+          recordedAt: formatTimestamp(data.timestamp_ms || Date.now())
+        }];
+      } else if (typeof data === 'object') {
+        // Si es una colección de push-keys (ej: push() en Firebase)
+        newItems = Object.entries(data)
+          .filter(([key, val]) => val && typeof val === 'object' && val.humedad_suelo_1 !== undefined)
+          .map(([key, item]) => ({
+            id: key,
+            ...item,
+            recordedAt: formatTimestamp(item.timestamp_ms)
+          }))
+          .sort((a, b) => (a.timestamp_ms || 0) - (b.timestamp_ms || 0));
+      }
+
+      if (newItems.length > 0) {
+        // Comprobar si hubo un cambio de riego o nueva lectura
+        if (!isFirstLoad && newItems.length > telemetryRecords.length) {
+          const latestItem = newItems[newItems.length - 1];
+          const isWatering = (latestItem.riego_estado || '').toLowerCase().includes('regando');
+          if (isWatering) {
+            showToast('💧 ¡El ESP32 ha activado el riego autónomo!', 'alert');
+          } else {
+            showToast(`📡 Nueva telemetría en ${sourceNode}: Suelo ${latestItem.humedad_suelo_1}%`, 'info');
+          }
+        }
+
+        isFirstLoad = false;
+        telemetryRecords = newItems;
+        saveData();
+        renderAll();
       }
     }
 
-    // --- Actualizar toda la interfaz ---
-    function updateUI() {
-      if (allData.length === 0) {
-        // mostrar vacío
-        riegoEstado.textContent = '—';
-        duracionRiego.textContent = '0';
-        plantaCorriente.textContent = '0.0';
-        plantaVoltaje.textContent = '0.00';
-        plantaPotencia.textContent = '0.00';
-        humedadSuelo.textContent = '0';
-        humedadAmbiente.textContent = '0';
-        temperatura.textContent = '0';
-        presion.textContent = '0';
-        ultimoRegistro.innerHTML = '<span class="text-muted">Sin datos</span>';
-        ultimaFechaHora.textContent = '—';
-        lastUpdateLabel.textContent = 'Esperando datos...';
-        updateChart([]);
-        return;
+    function loadSavedData() {
+      const saved = localStorage.getItem('ecoflora_telemetry');
+      if (saved) {
+        try {
+          telemetryRecords = JSON.parse(saved);
+        } catch (e) {
+          telemetryRecords = convertRawObjectToArray(FALLBACK_DATA);
+        }
+      } else {
+        telemetryRecords = convertRawObjectToArray(FALLBACK_DATA);
       }
-
-      // Tomar el más reciente
-      const latest = allData[0];
-      // Riego
-      const estado = latest.riego_estado || 'apagado';
-      riegoEstado.innerHTML = estado === 'on' ? '<span class="status-badge status-on"><i class="fas fa-check-circle"></i> ON</span>' :
-                              '<span class="status-badge status-off"><i class="fas fa-circle"></i> OFF</span>';
-      duracionRiego.textContent = latest.duracion_riego_segundos || 0;
-
-      // Planta
-      plantaCorriente.textContent = (latest.plantas_corriente_ma || 0).toFixed(1);
-      plantaVoltaje.textContent = (latest.plantas_voltaje || 0).toFixed(2);
-      plantaPotencia.textContent = (latest.plantas_watts || 0).toFixed(4);
-
-      // Sensores
-      humedadSuelo.textContent = latest.humedad_suelo_1 || 0;
-      humedadAmbiente.textContent = latest.humedad_ambiente || 0;
-      temperatura.textContent = latest.temperatura_ambiente_c || 0;
-      presion.textContent = latest.presion_hpa || 0;
-
-      // Último registro (texto)
-      const ts = latest._ts || Date.now();
-      ultimoRegistro.innerHTML = `
-        <div><i class="fas fa-tint"></i> Riego: <strong>${estado}</strong> · ${latest.duracion_riego_segundos || 0}s</div>
-        <div><i class="fas fa-bolt"></i> ${(latest.plantas_corriente_ma || 0).toFixed(1)}mA · ${(latest.plantas_voltaje || 0).toFixed(2)}V · ${(latest.plantas_watts || 0).toFixed(4)}W</div>
-        <div><i class="fas fa-seedling"></i> Suelo: ${latest.humedad_suelo_1 || 0}% · Amb: ${latest.humedad_ambiente || 0}%</div>
-      `;
-      ultimaFechaHora.textContent = formatDate(ts);
-      lastUpdateLabel.textContent = `Actualizado: ${new Date().toLocaleTimeString()}`;
-
-      // Actualizar gráfico con últimos 10 datos (o todos)
-      const chartData = allData.slice(0, 12).reverse(); // para que se vea cronológico
-      updateChart(chartData);
-
-      // Actualizar detalle según día/hora seleccionado
-      renderDetalle();
     }
 
-    // --- Gráfico ---
-    function updateChart(data) {
-      const ctx = document.getElementById('powerChart').getContext('2d');
-      if (chart) chart.destroy();
+    function convertRawObjectToArray(obj) {
+      if (!obj || typeof obj !== 'object') return [];
+      return Object.entries(obj).map(([key, item]) => ({
+        id: key,
+        ...item,
+        recordedAt: formatTimestamp(item.timestamp_ms)
+      })).sort((a, b) => (a.timestamp_ms || 0) - (b.timestamp_ms || 0));
+    }
 
-      const labels = data.map(d => getHourLabel(d._ts) || '');
-      const corriente = data.map(d => d.plantas_corriente_ma || 0);
-      const voltaje = data.map(d => d.plantas_voltaje || 0);
-      const potencia = data.map(d => d.plantas_watts || 0);
+    function saveData() {
+      localStorage.setItem('ecoflora_telemetry', JSON.stringify(telemetryRecords));
+    }
 
-      chart = new Chart(ctx, {
+    function formatTimestamp(ms) {
+      if (!ms) return '--:--';
+      if (ms > 10000000000) {
+        const d = new Date(ms);
+        return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + d.toLocaleTimeString('es-ES');
+      }
+      const seconds = Math.floor(ms / 1000);
+      return `${seconds}s uptime`;
+    }
+
+    /**
+     * Renderizado General de Métricas y Plant Avatar
+     */
+    function renderAll() {
+      if (telemetryRecords.length === 0) return;
+
+      const latest = telemetryRecords[telemetryRecords.length - 1];
+
+      // Banner superior
+      const isWatering = (latest.riego_estado || '').toLowerCase().includes('regando') || latest.riego_estado === 'encendido';
+      const valveElem = document.getElementById('bannerValveState');
+      valveElem.textContent = isWatering ? 'REGANDO 💧' : 'APAGADO';
+      valveElem.style.color = isWatering ? 'var(--accent)' : 'var(--text-muted)';
+      document.getElementById('bannerLastDuration').textContent = `${latest.duracion_riego_segundos || 0} s`;
+
+      // Avatar de la planta
+      updatePlantAvatar(latest, isWatering);
+
+      // Gauge Circular
+      const moisture = Math.min(100, Math.max(0, latest.humedad_suelo_1 || 0));
+      document.getElementById('soilMoistureValue').textContent = `${moisture}%`;
+      const gaugeCircle = document.getElementById('soilGaugeProgress');
+      const offset = 377 - (377 * (moisture / 100));
+      gaugeCircle.style.strokeDashoffset = offset;
+
+      const pill = document.getElementById('moistureStatusPill');
+      const advice = document.getElementById('moistureAdvice');
+      if (moisture < 25) {
+        gaugeCircle.style.stroke = 'var(--danger)';
+        pill.className = 'badge-status';
+        pill.style.background = 'rgba(239, 68, 68, 0.2)';
+        pill.style.color = 'var(--danger)';
+        pill.textContent = 'CRÍTICA: SUELO SECO';
+        advice.textContent = `Humedad muy baja (${moisture}%). El ESP32 activará el riego autónomo al alcanzar su umbral programado.`;
+      } else if (moisture < 50) {
+        gaugeCircle.style.stroke = 'var(--warning)';
+        pill.className = 'badge-status';
+        pill.style.background = 'rgba(245, 158, 11, 0.2)';
+        pill.style.color = 'var(--warning)';
+        pill.textContent = 'HUMEDAD MODERADA';
+        advice.textContent = 'Humedad en rango de mantenimiento aceptable.';
+      } else if (moisture <= 85) {
+        gaugeCircle.style.stroke = 'var(--accent)';
+        pill.className = 'badge-status';
+        pill.style.background = 'rgba(16, 185, 129, 0.2)';
+        pill.style.color = 'var(--accent)';
+        pill.textContent = 'HUMEDAD ÓPTIMA';
+        advice.textContent = 'Nivel perfecto de hidratación radicular. Válvula apagada para ahorro hídrico.';
+      } else {
+        gaugeCircle.style.stroke = 'var(--accent-secondary)';
+        pill.className = 'badge-status';
+        pill.style.background = 'rgba(6, 182, 212, 0.2)';
+        pill.style.color = 'var(--accent-secondary)';
+        pill.textContent = 'SATURADA / REGADA';
+        advice.textContent = 'Sustrato completamente húmedo reportado en campo.';
+      }
+
+      // KPIs
+      const batPct = Math.min(100, Math.max(0, latest.bateria_porcentaje || 0));
+      document.getElementById('batteryPercentVal').textContent = batPct;
+      document.getElementById('batteryLevelBar').style.width = `${batPct}%`;
+      document.getElementById('batteryVoltageVal').textContent = `${(latest.bateria_voltaje || 0).toFixed(2)} V`;
+
+      document.getElementById('powerWattsVal').textContent = (latest.plantas_watts || 0).toFixed(6);
+      document.getElementById('powerMaVal').textContent = `${(latest.plantas_corriente_ma || 0).toFixed(2)} mA`;
+      document.getElementById('tempAmbVal').textContent = latest.temperatura_ambiente_c || 0;
+      document.getElementById('humAmbVal').textContent = `${latest.humedad_ambiente || 0} %`;
+      document.getElementById('pressureVal').textContent = latest.presion_hpa || 0;
+
+      document.getElementById('detailPlantVolt').textContent = `${(latest.plantas_voltaje || 0).toFixed(3)} V`;
+      document.getElementById('detailPlantMa').textContent = `${(latest.plantas_corriente_ma || 0).toFixed(2)} mA`;
+      document.getElementById('detailPlantWatts').textContent = `${(latest.plantas_watts || 0).toFixed(6)} W`;
+
+      document.getElementById('plantMiniMoisture').textContent = `${moisture} %`;
+      document.getElementById('plantMiniVolt').textContent = `${(latest.plantas_voltaje || 0).toFixed(3)} V`;
+      document.getElementById('plantMiniMa').textContent = `${(latest.plantas_corriente_ma || 0).toFixed(2)} mA`;
+      document.getElementById('plantUptimeBadge').textContent = formatTimestamp(latest.timestamp_ms);
+
+      renderTable();
+      updateChartJsData();
+    }
+
+    /**
+     * Avatar Vegetal Reactivo SVG
+     */
+    function updatePlantAvatar(data, isWatering) {
+      const moisture = data.humedad_suelo_1 || 0;
+      const plantSvg = document.getElementById('plantSvg');
+      const rainContainer = document.getElementById('rainContainer');
+      const moodText = document.getElementById('plantMoodText');
+      const moodSub = document.getElementById('plantMoodSub');
+      const sweatDrop = document.getElementById('sweatDrop');
+      const leafLeft = document.getElementById('leafLeft');
+      const leafRight = document.getElementById('leafRight');
+
+      if (isWatering) {
+        rainContainer.className = 'rain-container active';
+        moodText.textContent = '¡Riego Autónomo en Marcha!';
+        moodSub.textContent = 'El ESP32 abrió la electroválvula para hidratar las raíces.';
+        sweatDrop.style.display = 'none';
+        leafLeft.style.transform = 'rotate(-5deg)';
+        leafRight.style.transform = 'rotate(5deg)';
+      } else {
+        rainContainer.className = 'rain-container';
+
+        if (moisture < 25) {
+          moodText.textContent = '¡Sustrato Seco! Alerta Crítica';
+          moodSub.textContent = `Humedad al ${moisture}%. El ESP32 iniciará riego en su próximo ciclo de control.`;
+          sweatDrop.style.display = 'block';
+          leafLeft.style.transform = 'rotate(25deg)';
+          leafRight.style.transform = 'rotate(-25deg)';
+          plantSvg.style.filter = 'drop-shadow(0 10px 15px rgba(239, 68, 68, 0.35)) saturate(0.7)';
+        } else if (moisture <= 80) {
+          moodText.textContent = 'Planta Radiante & Saludable';
+          moodSub.textContent = `Condiciones estables con ${moisture}% de humedad del suelo.`;
+          sweatDrop.style.display = 'none';
+          leafLeft.style.transform = 'rotate(0deg)';
+          leafRight.style.transform = 'rotate(0deg)';
+          plantSvg.style.filter = 'drop-shadow(0 10px 15px rgba(16, 185, 129, 0.25)) saturate(1.2)';
+        } else {
+          moodText.textContent = 'Sustrato Completamente Húmedo';
+          moodSub.textContent = `Nivel al ${moisture}%. No se requiere irrigación adicional.`;
+          sweatDrop.style.display = 'none';
+          leafLeft.style.transform = 'rotate(-3deg)';
+          leafRight.style.transform = 'rotate(3deg)';
+          plantSvg.style.filter = 'drop-shadow(0 10px 15px rgba(6, 182, 212, 0.25)) saturate(1.1)';
+        }
+      }
+    }
+
+    /**
+     * Tabla de Registros
+     */
+    function renderTable() {
+      const tbody = document.getElementById('telemetryTableBody');
+      tbody.innerHTML = '';
+
+      let filtered = telemetryRecords.filter(item => {
+        const moisture = item.humedad_suelo_1 || 0;
+        const isWatering = (item.riego_estado || '').toLowerCase().includes('regando');
+
+        if (currentFilter === 'dry' && moisture >= 25) return false;
+        if (currentFilter === 'optimal' && moisture < 50) return false;
+        if (currentFilter === 'watering' && !isWatering) return false;
+
+        if (searchQuery) {
+          const q = searchQuery.toLowerCase();
+          const matchId = (item.id || '').toLowerCase().includes(q);
+          const matchDevice = (item.device || '').toLowerCase().includes(q);
+          const matchState = (item.riego_estado || '').toLowerCase().includes(q);
+          if (!matchId && !matchDevice && !matchState) return false;
+        }
+
+        return true;
+      });
+
+      filtered.slice().reverse().forEach(row => {
+        const tr = document.createElement('tr');
+        const isWatering = (row.riego_estado || '').toLowerCase().includes('regando');
+
+        tr.innerHTML = `
+          <td><span class="key-badge">${row.id || 'N/A'}</span></td>
+          <td style="font-weight:600;">${row.device || 'esp32_plantas'}</td>
+          <td style="color:var(--text-muted); font-size:0.8rem;">${row.recordedAt || formatTimestamp(row.timestamp_ms)}</td>
+          <td>
+            <b style="color:${row.humedad_suelo_1 < 25 ? 'var(--danger)' : 'var(--accent)'};">
+              ${row.humedad_suelo_1}%
+            </b>
+          </td>
+          <td>
+            <span class="badge-status ${isWatering ? 'badge-watering' : 'badge-off'}">
+              ${isWatering ? '💧 Regando' : 'Apagado'}
+            </span>
+          </td>
+          <td>${row.duracion_riego_segundos || 0}s</td>
+          <td>${(row.plantas_voltaje || 0).toFixed(3)}V</td>
+          <td>${(row.plantas_corriente_ma || 0).toFixed(2)}mA</td>
+          <td>${(row.plantas_watts || 0).toFixed(6)}W</td>
+          <td>${row.bateria_porcentaje || 0}%</td>
+          <td style="color:var(--text-muted); font-size:0.75rem;">
+            ${row.temperatura_ambiente_c || 0}°C / ${row.presion_hpa || 0}hPa
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      document.getElementById('tableRecordCount').textContent = 
+        `Mostrando ${filtered.length} de ${telemetryRecords.length} registros`;
+      document.getElementById('chartPointsCount').textContent = 
+        `${telemetryRecords.length} registros`;
+    }
+
+    /**
+     * INICIALIZACIÓN Y GESTIÓN DE CHART.JS
+     */
+    function initChartJs() {
+      const ctx = document.getElementById('moistureChartCanvas').getContext('2d');
+      const style = getComputedStyle(document.documentElement);
+      const accentColor = style.getPropertyValue('--accent').trim() || '#10b981';
+
+      moistureChart = new Chart(ctx, {
         type: 'line',
         data: {
-          labels: labels,
-          datasets: [
-            { label: 'Corriente (mA)', data: corriente, borderColor: '#2a7a62', backgroundColor: 'rgba(42,122,98,0.05)', tension: 0.2, pointRadius: 2 },
-            { label: 'Voltaje (V)', data: voltaje, borderColor: '#3b7cbf', backgroundColor: 'rgba(59,124,191,0.05)', tension: 0.2, pointRadius: 2 },
-            { label: 'Potencia (W)', data: potencia, borderColor: '#b5723a', backgroundColor: 'rgba(181,114,58,0.05)', tension: 0.2, pointRadius: 2 }
-          ]
+          labels: [],
+          datasets: [{
+            label: 'Humedad de Suelo (%)',
+            data: [],
+            borderColor: accentColor,
+            backgroundColor: 'rgba(16, 185, 129, 0.15)',
+            fill: true,
+            tension: 0.35,
+            borderWidth: 3,
+            pointBackgroundColor: [],
+            pointBorderColor: '#ffffff',
+            pointBorderWidth: 2,
+            pointRadius: [],
+            pointHoverRadius: 7
+          }]
         },
         options: {
           responsive: true,
+          maintainAspectRatio: false,
+          animation: {
+            duration: 600
+          },
           plugins: {
-            legend: { display: true, labels: { boxWidth: 12, font: { size: 9 } } }
+            legend: {
+              display: false
+            },
+            tooltip: {
+              backgroundColor: 'rgba(14, 28, 34, 0.95)',
+              titleColor: '#ffffff',
+              bodyColor: '#10b981',
+              borderColor: 'rgba(16, 185, 129, 0.3)',
+              borderWidth: 1,
+              padding: 10,
+              callbacks: {
+                label: function(context) {
+                  return ` Humedad: ${context.parsed.y}%`;
+                }
+              }
+            }
           },
           scales: {
-            y: { beginAtZero: true, grid: { color: '#eef2f7' } },
-            x: { grid: { display: false } }
+            x: {
+              grid: {
+                color: 'rgba(255, 255, 255, 0.05)'
+              },
+              ticks: {
+                color: 'rgba(150, 160, 175, 0.8)',
+                font: { size: 10 },
+                maxTicksLimit: 8
+              }
+            },
+            y: {
+              min: 0,
+              max: 100,
+              grid: {
+                color: 'rgba(255, 255, 255, 0.08)'
+              },
+              ticks: {
+                color: 'rgba(150, 160, 175, 0.8)',
+                font: { size: 11 },
+                stepSize: 25,
+                callback: function(val) { return val + '%'; }
+              }
+            }
           }
         }
       });
     }
 
-    // --- Render detalle según día/hora ---
-    function renderDetalle() {
-      // Filtrar por día
-      let filtered = [...allData];
-      const now = new Date();
-      const todayStr = now.toDateString();
-      const yesterdayStr = new Date(now.getTime() - 86400000).toDateString();
+    function updateChartJsData() {
+      if (!moistureChart) return;
 
-      if (currentDay === 'hoy') {
-        filtered = filtered.filter(d => new Date(d._ts).toDateString() === todayStr);
-      } else if (currentDay === 'ayer') {
-        filtered = filtered.filter(d => new Date(d._ts).toDateString() === yesterdayStr);
-      }
-      // 'todos' no filtra por día
-
-      if (filtered.length === 0) {
-        setDetalleVacio();
-        return;
-      }
-
-      // Filtrar por hora (simulación: comparar la hora)
-      let hourFiltered = [...filtered];
-      if (currentHour === '8am') {
-        hourFiltered = filtered.filter(d => {
-          const h = new Date(d._ts).getHours();
-          return h >= 7 && h < 10;
-        });
-      } else if (currentHour === '5pm') {
-        hourFiltered = filtered.filter(d => {
-          const h = new Date(d._ts).getHours();
-          return h >= 16 && h < 19;
-        });
-      } else if (currentHour === '7pm') {
-        hourFiltered = filtered.filter(d => {
-          const h = new Date(d._ts).getHours();
-          return h >= 18 && h < 21;
-        });
-      } else if (currentHour === 'ultimo') {
-        // tomar el más reciente de los filtrados
-        if (filtered.length > 0) {
-          const last = filtered[0];
-          setDetalleFromObj(last);
-          return;
-        } else {
-          setDetalleVacio();
-          return;
+      const data = telemetryRecords.slice(-30);
+      const labels = data.map(d => {
+        if (d.timestamp_ms && d.timestamp_ms > 10000000000) {
+          return new Date(d.timestamp_ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         }
+        return d.recordedAt || '';
+      });
+
+      const values = data.map(d => d.humedad_suelo_1 || 0);
+
+      const style = getComputedStyle(document.documentElement);
+      const accentColor = style.getPropertyValue('--accent').trim() || '#10b981';
+
+      // Colores de puntos dinámicos (azul si estaba regando, verde si es normal)
+      const pointColors = data.map(d => {
+        const isWatering = (d.riego_estado || '').toLowerCase().includes('regando');
+        return isWatering ? '#38bdf8' : accentColor;
+      });
+
+      const pointRadii = data.map(d => {
+        const isWatering = (d.riego_estado || '').toLowerCase().includes('regando');
+        return isWatering ? 6 : 4;
+      });
+
+      moistureChart.data.labels = labels;
+      moistureChart.data.datasets[0].data = values;
+      moistureChart.data.datasets[0].borderColor = accentColor;
+      moistureChart.data.datasets[0].pointBackgroundColor = pointColors;
+      moistureChart.data.datasets[0].pointRadius = pointRadii;
+      moistureChart.update('none'); // Actualización ultra fluida sin jank
+    }
+
+    /**
+     * Listeners de Interacción
+     */
+    function initEventListeners() {
+      const themeSelector = document.getElementById('themeSelector');
+      themeSelector.addEventListener('change', (e) => {
+        document.documentElement.setAttribute('data-theme', e.target.value);
+        localStorage.setItem('ecoflora_theme', e.target.value);
+        updateChartJsData();
+        showToast(`Tema visual cambiado a: ${e.target.selectedOptions[0].text}`, 'info');
+      });
+
+      document.querySelectorAll('.filter-tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.filter-tab').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentFilter = btn.dataset.filter;
+          renderTable();
+        });
+      });
+
+      document.getElementById('tableSearch').addEventListener('input', (e) => {
+        searchQuery = e.target.value;
+        renderTable();
+      });
+
+      // Botón Simular Paquete ESP32
+      document.getElementById('btnSimulate').addEventListener('click', runSimulationStep);
+
+      // Exportar CSV y JSON
+      document.getElementById('btnExportCSV').addEventListener('click', exportToCSV);
+      document.getElementById('btnExportJSON').addEventListener('click', exportToJSON);
+
+      // Restaurar Caché
+      document.getElementById('btnClearHistory').addEventListener('click', () => {
+        if (confirm('¿Deseas limpiar la caché local y re-sincronizar en vivo desde Firebase?')) {
+          localStorage.removeItem('ecoflora_telemetry');
+          telemetryRecords = [];
+          showToast('Caché restablecida. Escuchando Firebase...', 'info');
+        }
+      });
+    }
+
+    function initThemeSelector() {
+      const savedTheme = localStorage.getItem('ecoflora_theme') || 'emerald';
+      document.documentElement.setAttribute('data-theme', savedTheme);
+      document.getElementById('themeSelector').value = savedTheme;
+    }
+
+    /**
+     * Simulación Local de Riego Autónomo
+     */
+    function runSimulationStep() {
+      const last = telemetryRecords[telemetryRecords.length - 1] || { humedad_suelo_1: 14 };
+      let prevMoisture = last.humedad_suelo_1;
+      let newMoisture;
+      let newValveState = 'apagado';
+      let duration = 0;
+
+      if (prevMoisture < 20) {
+        newValveState = 'regando';
+        duration = 5;
+        newMoisture = Math.min(100, prevMoisture + Math.floor(Math.random() * 40) + 50);
+        showToast('💧 ¡ESP32 detectó sustrato seco y activó el riego automático!', 'alert');
+      } else {
+        const drop = Math.floor(Math.random() * 8) + 4;
+        newMoisture = Math.max(10, prevMoisture - drop);
       }
 
-      if (hourFiltered.length === 0) {
-        setDetalleVacio();
+      const randomKey = '-P0h' + Math.random().toString(36).substring(2, 10) + '_' + Math.random().toString(36).substring(2, 6);
+      const newTime = Date.now();
+
+      const newRecord = {
+        id: randomKey,
+        device: "esp32_plantas",
+        humedad_suelo_1: newMoisture,
+        riego_estado: newValveState,
+        duracion_riego_segundos: duration,
+        plantas_voltaje: Number((0.875 + Math.random() * 0.01).toFixed(3)),
+        plantas_corriente_ma: Number((0.1 + Math.random() * 0.2).toFixed(2)),
+        plantas_watts: Number((0.00008 + Math.random() * 0.0001).toFixed(6)),
+        bateria_porcentaje: 0,
+        bateria_voltaje: 0,
+        temperatura_ambiente_c: 0,
+        humedad_ambiente: 0,
+        presion_hpa: 0,
+        timestamp_ms: newTime,
+        recordedAt: formatTimestamp(newTime)
+      };
+
+      // Si se desea pushear a Firebase directamente para probar la escucha:
+      // esp32DatosRef.push(newRecord);
+      telemetryRecords.push(newRecord);
+      saveData();
+      renderAll();
+    }
+
+    /**
+     * Exportar CSV
+     */
+    function exportToCSV() {
+      if (telemetryRecords.length === 0) {
+        showToast('No hay registros para exportar', 'warn');
         return;
       }
 
-      // Tomar el primero (más reciente) de esa franja horaria
-      const obj = hourFiltered[0];
-      setDetalleFromObj(obj);
+      const headers = [
+        "id_firebase", "device", "timestamp_ms", "fecha_hora_local", "humedad_suelo_1",
+        "riego_estado", "duracion_riego_segundos", "plantas_voltaje",
+        "plantas_corriente_ma", "plantas_watts", "bateria_porcentaje",
+        "bateria_voltaje", "temperatura_ambiente_c", "humedad_ambiente", "presion_hpa"
+      ];
+
+      const rows = telemetryRecords.map(r => [
+        `"${r.id || ''}"`,
+        `"${r.device || ''}"`,
+        r.timestamp_ms || 0,
+        `"${r.recordedAt || ''}"`,
+        r.humedad_suelo_1 || 0,
+        `"${r.riego_estado || ''}"`,
+        r.duracion_riego_segundos || 0,
+        r.plantas_voltaje || 0,
+        r.plantas_corriente_ma || 0,
+        r.plantas_watts || 0,
+        r.bateria_porcentaje || 0,
+        r.bateria_voltaje || 0,
+        r.temperatura_ambiente_c || 0,
+        r.humedad_ambiente || 0,
+        r.presion_hpa || 0
+      ]);
+
+      const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      link.setAttribute('download', `telemetria_esp32_firebase_${new Date().toISOString().slice(0,10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast('📄 Archivo CSV descargado correctamente', 'info');
     }
 
-    function setDetalleFromObj(obj) {
-      detRiego.textContent = obj.riego_estado || 'apagado';
-      detDuracion.textContent = (obj.duracion_riego_segundos || 0) + ' s';
-      detCorriente.textContent = (obj.plantas_corriente_ma || 0).toFixed(1) + ' mA';
-      detVoltaje.textContent = (obj.plantas_voltaje || 0).toFixed(2) + ' V';
-      detPotencia.textContent = (obj.plantas_watts || 0).toFixed(4) + ' W';
-      detHumedad.textContent = (obj.humedad_suelo_1 || 0) + ' %';
-    }
-
-    function setDetalleVacio() {
-      detRiego.textContent = '—';
-      detDuracion.textContent = '—';
-      detCorriente.textContent = '—';
-      detVoltaje.textContent = '—';
-      detPotencia.textContent = '—';
-      detHumedad.textContent = '—';
-    }
-
-    // --- Eventos ---
-    document.querySelectorAll('.date-btn').forEach(btn => {
-      btn.addEventListener('click', function(e) {
-        document.querySelectorAll('.date-btn').forEach(b => b.classList.remove('active'));
-        this.classList.add('active');
-        currentDay = this.dataset.day;
-        renderDetalle();
+    /**
+     * Exportar JSON
+     */
+    function exportToJSON() {
+      const outputObj = {};
+      telemetryRecords.forEach(item => {
+        const { id, recordedAt, ...rest } = item;
+        outputObj[id || `entry_${Date.now()}`] = rest;
       });
-    });
 
-    document.querySelectorAll('.hora-btn').forEach(btn => {
-      btn.addEventListener('click', function(e) {
-        document.querySelectorAll('.hora-btn').forEach(b => b.classList.remove('active'));
-        this.classList.add('active');
-        currentHour = this.dataset.hora;
-        renderDetalle();
-      });
-    });
+      const jsonStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(outputObj, null, 2));
+      const link = document.createElement('a');
+      link.setAttribute('href', jsonStr);
+      link.setAttribute('download', `firebase_esp32_plantas_${Date.now()}.json`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast('📦 Archivo JSON descargado', 'info');
+    }
 
-    // Inicializar
-    fetchData();
-    setInterval(fetchData, 10000);
+    /**
+     * Notificaciones Toast
+     */
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = 'toast';
 
-  })();
-</script>
+      let icon = 'ℹ️';
+      if (type === 'alert') icon = '🚨';
+      if (type === 'warn') icon = '⚠️';
+
+      toast.innerHTML = `<span>${icon}</span> <span>${message}</span>`;
+      container.appendChild(toast);
+
+      requestAnimationFrame(() => toast.classList.add('show'));
+
+      setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 350);
+      }, 3800);
+    }
+  </script>
 </body>
 </html>
